@@ -11,22 +11,22 @@ class DataSet(object):
         self.trainDict = self.getTrainDict()
 
     def getData(self, fileName):
-        if fileName == 'ml-1m':
-            print("Loading ml-1m data set...")
+        # if fileName == 'ml-1m':
+        #     print("Loading ml-1m data set...")
             data = []
-            filePath = './Data/ml-1m/ratings.dat'
+            filePath = fileName
             u = 0
             i = 0
             maxr = 0.0
             with open(filePath, 'r') as f:
                 for line in f:
                     if line:
-                        lines = line[:-1].split("::")
+                        lines = line[:-1].split("\t")
                         user = int(lines[0])
                         movie = int(lines[1])
                         score = float(lines[2])
-                        time = int(lines[3])
-                        data.append((user, movie, score, time))
+                        # time = int(lines[3])
+                        data.append((user, movie, score))
                         if user > u:
                             u = user
                         if movie > i:
@@ -40,13 +40,13 @@ class DataSet(object):
                   "\tItem Num: {}\n"
                   "\tData Size: {}".format(u, i, len(data)))
             return data, [u, i]
-        else:
-            print("Current data set is not support!")
-            sys.exit()
+        # else:
+        #     print("Current data set is not support!")
+        #     sys.exit()
 
     def getTrainTest(self):
         data = self.data
-        data = sorted(data, key=lambda x: (x[0], x[3]))
+        data = sorted(data, key=lambda x: (x[0]))
         train = []
         test = []
         for i in range(len(data)-1):

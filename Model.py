@@ -13,12 +13,12 @@ import math
 def main():
     parser = argparse.ArgumentParser(description="Options")
 
-    parser.add_argument('-dataName', action='store', dest='dataName', default='ml-1m')
-    parser.add_argument('-negNum', action='store', dest='negNum', default=7, type=int)
-    parser.add_argument('-userLayer', action='store', dest='userLayer', default=[512, 64])
-    parser.add_argument('-itemLayer', action='store', dest='itemLayer', default=[1024, 64])
+    parser.add_argument('-dataName', action='store', dest='dataName', default='D:/project/dataset/ml-100k/u.data')
+    parser.add_argument('-negNum', action='store', dest='negNum', default=4, type=int)
+    parser.add_argument('-userLayer', action='store', dest='userLayer', default=[ 128])
+    parser.add_argument('-itemLayer', action='store', dest='itemLayer', default=[ 128])
     # parser.add_argument('-reg', action='store', dest='reg', default=1e-3)
-    parser.add_argument('-lr', action='store', dest='lr', default=0.0001)
+    parser.add_argument('-lr', action='store', dest='lr', default=0.005)
     parser.add_argument('-maxEpochs', action='store', dest='maxEpochs', default=50, type=int)
     parser.add_argument('-batchSize', action='store', dest='batchSize', default=256, type=int)
     parser.add_argument('-earlyStop', action='store', dest='earlyStop', default=5)
@@ -87,28 +87,29 @@ class Model:
         with tf.name_scope("User_Layer"):
             user_W1 = init_variable([self.shape[1], self.userLayer[0]], "user_W1")
             user_out = tf.matmul(user_input, user_W1)
-            for i in range(0, len(self.userLayer)-1):
-                W = init_variable([self.userLayer[i], self.userLayer[i+1]], "user_W"+str(i+2))
-                b = init_variable([self.userLayer[i+1]], "user_b"+str(i+2))
-                user_out = tf.nn.relu(tf.add(tf.matmul(user_out, W), b))
-
+            # for i in range(0, len(self.userLayer)-1):
+            #     W = init_variable([self.userLayer[i], self.userLayer[i+1]], "user_W"+str(i+2))
+            #     b = init_variable([self.userLayer[i+1]], "user_b"+str(i+2))
+            #     user_out = tf.nn.relu(tf.add(tf.matmul(user_out, W), b))
+            user_out = tf.nn.relu(user_out)
         with tf.name_scope("Item_Layer"):
             item_W1 = init_variable([self.shape[0], self.itemLayer[0]], "item_W1")
             item_out = tf.matmul(item_input, item_W1)
-            for i in range(0, len(self.itemLayer)-1):
-                W = init_variable([self.itemLayer[i], self.itemLayer[i+1]], "item_W"+str(i+2))
-                b = init_variable([self.itemLayer[i+1]], "item_b"+str(i+2))
-                item_out = tf.nn.relu(tf.add(tf.matmul(item_out, W), b))
-
-        norm_user_output = tf.sqrt(tf.reduce_sum(tf.square(user_out), axis=1))
-        norm_item_output = tf.sqrt(tf.reduce_sum(tf.square(item_out), axis=1))
-        self.y_ = tf.reduce_sum(tf.multiply(user_out, item_out), axis=1, keep_dims=False) / (norm_item_output* norm_user_output)
-        self.y_ = tf.maximum(1e-6, self.y_)
+            # for i in range(0, len(self.itemLayer)-1):
+            #     W = init_variable([self.itemLayer[i], self.itemLayer[i+1]], "item_W"+str(i+2))
+            #     b = init_variable([self.itemLayer[i+1]], "item_b"+str(i+2))
+            #     item_out = tf.nn.relu(tf.add(tf.matmul(item_out, W), b))
+            item_out = tf.nn.relu(item_out)
+        # norm_user_output = tf.sqrt(tf.reduce_sum(tf.square(user_out), axis=1))
+        # norm_item_output = tf.sqrt(tf.reduce_sum(tf.square(item_out), axis=1))
+        self.y_ = tf.reduce_sum(tf.multiply(user_out, item_out), axis=1, keep_dims=False) #/ (norm_item_output* norm_user_output)
+        # self.y_ = tf.maximum(1e-6, self.y_)
 
     def add_loss(self):
         regRate = self.rate / self.maxRate
-        losses = regRate * tf.log(self.y_) + (1 - regRate) * tf.log(1 - self.y_)
-        loss = -tf.reduce_sum(losses)
+        # losses = regRate * tf.log(self.y_) + (1 - regRate) * tf.log(1 - self.y_)
+        losses = tf.nn.sigmoid_cross_entropy_with_logits(labels=regRate , logits= self.y_)
+        loss = tf.reduce_mean(losses)
         # regLoss = tf.add_n([tf.nn.l2_loss(v) for v in tf.trainable_variables()])
         # self.loss = loss + self.reg * regLoss
         self.loss = loss
@@ -130,10 +131,10 @@ class Model:
         self.sess.run(tf.global_variables_initializer())
 
         self.saver = tf.train.Saver()
-        if os.path.exists(self.checkPoint):
-            [os.remove(f) for f in os.listdir(self.checkPoint)]
-        else:
-            os.mkdir(self.checkPoint)
+        # if os.path.exists(self.checkPoint):
+        #     [os.remove(f) for f in os.listdir(self.checkPoint)]
+        # else:
+        #     os.mkdir(self.checkPoint)
 
     def run(self):
         best_hr = -1

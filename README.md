@@ -19,3 +19,5 @@ python Model.py
 As a learner, there may have some faults in the code.
 
 Please feel **FREE** to advise.
+
+change to [64],filmtrust ,result:Epoch  24 HR: 0.9946949602122016, NDCG: 0.8914386240197465

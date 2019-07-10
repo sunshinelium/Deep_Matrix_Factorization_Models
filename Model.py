@@ -15,8 +15,8 @@ def main():
 
     parser.add_argument('-dataName', action='store', dest='dataName', default='D:/project/dataset/ml-100k/u.data')
     parser.add_argument('-negNum', action='store', dest='negNum', default=4, type=int)
-    parser.add_argument('-userLayer', action='store', dest='userLayer', default=[ 128])
-    parser.add_argument('-itemLayer', action='store', dest='itemLayer', default=[ 128])
+    parser.add_argument('-userLayer', action='store', dest='userLayer', default=[ 64])
+    parser.add_argument('-itemLayer', action='store', dest='itemLayer', default=[ 64])
     # parser.add_argument('-reg', action='store', dest='reg', default=1e-3)
     parser.add_argument('-lr', action='store', dest='lr', default=0.005)
     parser.add_argument('-maxEpochs', action='store', dest='maxEpochs', default=50, type=int)
@@ -100,16 +100,16 @@ class Model:
             #     b = init_variable([self.itemLayer[i+1]], "item_b"+str(i+2))
             #     item_out = tf.nn.relu(tf.add(tf.matmul(item_out, W), b))
             item_out = tf.nn.relu(item_out)
-        # norm_user_output = tf.sqrt(tf.reduce_sum(tf.square(user_out), axis=1))
-        # norm_item_output = tf.sqrt(tf.reduce_sum(tf.square(item_out), axis=1))
-        self.y_ = tf.reduce_sum(tf.multiply(user_out, item_out), axis=1, keep_dims=False) #/ (norm_item_output* norm_user_output)
-        # self.y_ = tf.maximum(1e-6, self.y_)
+        norm_user_output = tf.sqrt(tf.reduce_sum(tf.square(user_out), axis=1))
+        norm_item_output = tf.sqrt(tf.reduce_sum(tf.square(item_out), axis=1))
+        self.y_ = tf.reduce_sum(tf.multiply(user_out, item_out), axis=1, keep_dims=False) / (norm_item_output* norm_user_output)
+        self.y_ = tf.maximum(1e-6, self.y_)
 
     def add_loss(self):
         regRate = self.rate / self.maxRate
-        # losses = regRate * tf.log(self.y_) + (1 - regRate) * tf.log(1 - self.y_)
-        losses = tf.nn.sigmoid_cross_entropy_with_logits(labels=regRate , logits= self.y_)
-        loss = tf.reduce_mean(losses)
+        losses = regRate * tf.log(self.y_) + (1 - regRate) * tf.log(1 - self.y_)
+        # losses = tf.nn.sigmoid_cross_entropy_with_logits(labels=regRate , logits= self.y_)
+        loss = -tf.reduce_sum(losses)
         # regLoss = tf.add_n([tf.nn.l2_loss(v) for v in tf.trainable_variables()])
         # self.loss = loss + self.reg * regLoss
         self.loss = loss
@@ -220,8 +220,9 @@ class Model:
             predict = sess.run(self.y_, feed_dict=feed_dict)
 
             item_score_dict = {}
-
-            for j in range(len(testItem[i])):
+            lenth = len(testItem[i])
+            for j in range(lenth):
+                j = (j+1) % lenth
                 item = testItem[i][j]
                 item_score_dict[item] = predict[j]
 

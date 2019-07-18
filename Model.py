@@ -9,31 +9,8 @@ import os
 import heapq
 import math
 
-
-def main():
-    parser = argparse.ArgumentParser(description="Options")
-
-    parser.add_argument('-dataName', action='store', dest='dataName', default='D:/project/dataset/ml-100k/u.data')
-    parser.add_argument('-negNum', action='store', dest='negNum', default=4, type=int)
-    parser.add_argument('-userLayer', action='store', dest='userLayer', default=[ 64])
-    parser.add_argument('-itemLayer', action='store', dest='itemLayer', default=[ 64])
-    # parser.add_argument('-reg', action='store', dest='reg', default=1e-3)
-    parser.add_argument('-lr', action='store', dest='lr', default=0.005)
-    parser.add_argument('-maxEpochs', action='store', dest='maxEpochs', default=50, type=int)
-    parser.add_argument('-batchSize', action='store', dest='batchSize', default=256, type=int)
-    parser.add_argument('-earlyStop', action='store', dest='earlyStop', default=5)
-    parser.add_argument('-checkPoint', action='store', dest='checkPoint', default='./checkPoint/')
-    parser.add_argument('-topK', action='store', dest='topK', default=10)
-
-    args = parser.parse_args()
-
-    classifier = Model(args)
-
-    classifier.run()
-
-
-class Model:
-    def __init__(self, args):
+class BaseClass(object):
+    def __init__(self,args):
         self.dataName = args.dataName
         self.dataSet = DataSet(self.dataName)
         self.shape = self.dataSet.shape
@@ -44,21 +21,6 @@ class Model:
 
         self.negNum = args.negNum
         self.testNeg = self.dataSet.getTestNeg(self.test, 99)
-        self.add_embedding_matrix()
-
-        self.add_placeholders()
-
-        self.userLayer = args.userLayer
-        self.itemLayer = args.itemLayer
-        self.add_model()
-
-        self.add_loss()
-
-        self.lr = args.lr
-        self.add_train_step()
-
-        self.checkPoint = args.checkPoint
-        self.init_sess()
 
         self.maxEpochs = args.maxEpochs
         self.batchSize = args.batchSize
@@ -66,53 +28,15 @@ class Model:
         self.topK = args.topK
         self.earlyStop = args.earlyStop
 
-
+        self.checkPoint = args.checkPoint
+        self.lr = args.lr
     def add_placeholders(self):
         self.user = tf.placeholder(tf.int32)
         self.item = tf.placeholder(tf.int32)
         self.rate = tf.placeholder(tf.float32)
         self.drop = tf.placeholder(tf.float32)
-
-    def add_embedding_matrix(self):
-        self.user_item_embedding = tf.convert_to_tensor(self.dataSet.getEmbedding())
-        self.item_user_embedding = tf.transpose(self.user_item_embedding)
-
-    def add_model(self):
-        user_input = tf.nn.embedding_lookup(self.user_item_embedding, self.user)
-        item_input = tf.nn.embedding_lookup(self.item_user_embedding, self.item)
-
-        def init_variable(shape, name):
-            return tf.Variable(tf.truncated_normal(shape=shape, dtype=tf.float32, stddev=0.01), name=name)
-
-        with tf.name_scope("User_Layer"):
-            user_W1 = init_variable([self.shape[1], self.userLayer[0]], "user_W1")
-            user_out = tf.matmul(user_input, user_W1)
-            # for i in range(0, len(self.userLayer)-1):
-            #     W = init_variable([self.userLayer[i], self.userLayer[i+1]], "user_W"+str(i+2))
-            #     b = init_variable([self.userLayer[i+1]], "user_b"+str(i+2))
-            #     user_out = tf.nn.relu(tf.add(tf.matmul(user_out, W), b))
-            user_out = tf.nn.relu(user_out)
-        with tf.name_scope("Item_Layer"):
-            item_W1 = init_variable([self.shape[0], self.itemLayer[0]], "item_W1")
-            item_out = tf.matmul(item_input, item_W1)
-            # for i in range(0, len(self.itemLayer)-1):
-            #     W = init_variable([self.itemLayer[i], self.itemLayer[i+1]], "item_W"+str(i+2))
-            #     b = init_variable([self.itemLayer[i+1]], "item_b"+str(i+2))
-            #     item_out = tf.nn.relu(tf.add(tf.matmul(item_out, W), b))
-            item_out = tf.nn.relu(item_out)
-        norm_user_output = tf.sqrt(tf.reduce_sum(tf.square(user_out), axis=1))
-        norm_item_output = tf.sqrt(tf.reduce_sum(tf.square(item_out), axis=1))
-        self.y_ = tf.reduce_sum(tf.multiply(user_out, item_out), axis=1, keep_dims=False) / (norm_item_output* norm_user_output)
-        self.y_ = tf.maximum(1e-6, self.y_)
-
     def add_loss(self):
-        regRate = self.rate / self.maxRate
-        losses = regRate * tf.log(self.y_) + (1 - regRate) * tf.log(1 - self.y_)
-        # losses = tf.nn.sigmoid_cross_entropy_with_logits(labels=regRate , logits= self.y_)
-        loss = -tf.reduce_sum(losses)
-        # regLoss = tf.add_n([tf.nn.l2_loss(v) for v in tf.trainable_variables()])
-        # self.loss = loss + self.reg * regLoss
-        self.loss = loss
+        pass
 
     def add_train_step(self):
         '''
@@ -135,7 +59,6 @@ class Model:
         #     [os.remove(f) for f in os.listdir(self.checkPoint)]
         # else:
         #     os.mkdir(self.checkPoint)
-
     def run(self):
         best_hr = -1
         best_NDCG = -1
@@ -143,24 +66,24 @@ class Model:
         print("Start Training!")
         for epoch in range(self.maxEpochs):
             print("="*20+"Epoch ", epoch, "="*20)
-            self.run_epoch(self.sess)
+            self.run_epoch()
             print('='*50)
             print("Start Evaluation!")
-            hr, NDCG = self.evaluate(self.sess, self.topK)
-            print("Epoch ", epoch, "HR: {}, NDCG: {}".format(hr, NDCG))
-            if hr > best_hr or NDCG > best_NDCG:
-                best_hr = hr
-                best_NDCG = NDCG
+            self.evaluate(epoch)
+            print("Epoch ", epoch, "HR: {}, NDCG: {}".format(self.hr, self.NDCG))
+            if self.hr > best_hr or self.NDCG > best_NDCG:
+                best_hr = self.hr
+                best_NDCG = self.NDCG
                 best_epoch = epoch
                 self.saver.save(self.sess, self.checkPoint)
             if epoch - best_epoch > self.earlyStop:
                 print("Normal Early stop!")
                 break
-            print("="*20+"Epoch ", epoch, "End"+"="*20)
+        print("="*20+"Epoch ", epoch, "End"+"="*20)    
         print("Best hr: {}, NDCG: {}, At Epoch {}".format(best_hr, best_NDCG, best_epoch))
         print("Training complete!")
 
-    def run_epoch(self, sess, verbose=10):
+    def run_epoch(self, verbose=10):
         train_u, train_i, train_r = self.dataSet.getInstances(self.train, self.negNum)
         train_len = len(train_u)
         shuffled_idx = np.random.permutation(np.arange(train_len))
@@ -179,7 +102,7 @@ class Model:
             train_r_batch = train_r[min_idx: max_idx]
 
             feed_dict = self.create_feed_dict(train_u_batch, train_i_batch, train_r_batch)
-            _, tmp_loss = sess.run([self.train_step, self.loss], feed_dict=feed_dict)
+            _, tmp_loss = self.sess.run([self.train_step, self.loss], feed_dict=feed_dict)
             losses.append(tmp_loss)
             if verbose and i % verbose == 0:
                 sys.stdout.write('\r{} / {} : loss = {}'.format(
@@ -196,7 +119,7 @@ class Model:
                 self.rate: r,
                 self.drop: drop}
 
-    def evaluate(self, sess, topK):
+    def evaluate(self,epoch):
         def getHitRatio(ranklist, targetItem):
             for item in ranklist:
                 if item == targetItem:
@@ -217,7 +140,7 @@ class Model:
         for i in range(len(testUser)):
             target = testItem[i][0]
             feed_dict = self.create_feed_dict(testUser[i], testItem[i])
-            predict = sess.run(self.y_, feed_dict=feed_dict)
+            predict = self.sess.run(self.y_, feed_dict=feed_dict)
 
             item_score_dict = {}
             lenth = len(testItem[i])
@@ -226,13 +149,115 @@ class Model:
                 item = testItem[i][j]
                 item_score_dict[item] = predict[j]
 
-            ranklist = heapq.nlargest(topK, item_score_dict, key=item_score_dict.get)
+            ranklist = heapq.nlargest(self.topK, item_score_dict, key=item_score_dict.get)
 
             tmp_hr = getHitRatio(ranklist, target)
             tmp_NDCG = getNDCG(ranklist, target)
             hr.append(tmp_hr)
             NDCG.append(tmp_NDCG)
-        return np.mean(hr), np.mean(NDCG)
+        self.hr, self.NDCG = np.mean(hr), np.mean(NDCG)
 
-if __name__ == '__main__':
-    main()
+
+class DMF(BaseClass):
+    def __init__(self, args):
+        super(DMF,self).__init__(args)
+        self.userLayer = args.userLayer
+        self.itemLayer = args.itemLayer
+        self.checkPoint = args.checkPoint+'DMF/'
+
+        self.add_embedding_matrix()
+        self.add_placeholders()
+
+        self.add_model()
+        self.add_loss()
+
+        self.add_train_step()
+        self.init_sess()
+
+    def add_embedding_matrix(self):
+        self.user_item_embedding = tf.convert_to_tensor(self.dataSet.getEmbedding())
+        self.item_user_embedding = tf.transpose(self.user_item_embedding)
+
+    def add_model(self):
+        user_input = tf.nn.embedding_lookup(self.user_item_embedding, self.user)
+        item_input = tf.nn.embedding_lookup(self.item_user_embedding, self.item)
+
+        def init_variable(shape, name):
+            return tf.Variable(tf.truncated_normal(shape=shape, dtype=tf.float32, stddev=0.01), name=name)
+
+        with tf.name_scope("User_Layer"):
+            user_W1 = init_variable([self.shape[1], self.userLayer[0]], "user_W1")
+            user_out = tf.matmul(user_input, user_W1)
+            for i in range(0, len(self.userLayer)-1):
+                W = init_variable([self.userLayer[i], self.userLayer[i+1]], "user_W"+str(i+2))
+                b = init_variable([self.userLayer[i+1]], "user_b"+str(i+2))
+                user_out = tf.nn.relu(tf.add(tf.matmul(user_out, W), b))
+            # user_out = tf.nn.relu(user_out)
+        with tf.name_scope("Item_Layer"):
+            item_W1 = init_variable([self.shape[0], self.itemLayer[0]], "item_W1")
+            item_out = tf.matmul(item_input, item_W1)
+            for i in range(0, len(self.itemLayer)-1):
+                W = init_variable([self.itemLayer[i], self.itemLayer[i+1]], "item_W"+str(i+2))
+                b = init_variable([self.itemLayer[i+1]], "item_b"+str(i+2))
+                item_out = tf.nn.relu(tf.add(tf.matmul(item_out, W), b))
+            # item_out = tf.nn.relu(item_out)
+        norm_user_output = tf.sqrt(tf.reduce_sum(tf.square(user_out), axis=1))
+        norm_item_output = tf.sqrt(tf.reduce_sum(tf.square(item_out), axis=1))
+        self.y_ = tf.reduce_sum(tf.multiply(user_out, item_out), axis=1, keep_dims=False) / (norm_item_output* norm_user_output)
+        self.y_ = tf.maximum(1e-6, self.y_)
+
+    def add_loss(self):
+        regRate = self.rate / self.maxRate
+        losses = regRate * tf.log(self.y_) + (1 - regRate) * tf.log(1 - self.y_)
+        # losses = tf.nn.sigmoid_cross_entropy_with_logits(labels=regRate , logits= self.y_)
+        loss = -tf.reduce_sum(losses)
+        # regLoss = tf.add_n([tf.nn.l2_loss(v) for v in tf.trainable_variables()])
+        # self.loss = loss + self.reg * regLoss
+        self.loss = loss
+
+
+class neuMF(BaseClass):
+    def __init__(self, args):
+        super(neuMF,self).__init__(args)
+        self.MLPlayer = args.MLPlayer
+        self.GMFlayer = args.GMFlayer
+        self.checkPoint = args.checkPoint+'neuMF/'
+        self.add_placeholders()
+        self.add_model()
+        self.add_loss()
+        self.add_train_step()
+        self.init_sess()
+    def add_model(self):
+        def init_variable(shape, name):
+            return tf.Variable(tf.truncated_normal(shape=shape, dtype=tf.float32, stddev=0.01), name=name)
+        with tf.name_scope('MLP'):
+            embed_u = init_variable([self.shape[0],self.MLPlayer[0]//2],'embed_u')
+            embed_i = init_variable([self.shape[1],self.MLPlayer[0]//2],'embed_i')
+            user_input = tf.nn.embedding_lookup(embed_u,self.user)
+            item_input = tf.nn.embedding_lookup(embed_i,self.item)
+            mlp_v = tf.concat([user_input,item_input],1)
+            for i in range(len(self.MLPlayer)-1):
+                w = init_variable([self.MLPlayer[i],self.MLPlayer[i+1]],'w'+str(i+1))
+                b = init_variable([self.MLPlayer[i+1]],'b'+str(i+1))
+                mlp_v = tf.add(tf.matmul(mlp_v,w),b)
+        with tf.name_scope('GMF'):
+            embed_u = init_variable([self.shape[0],self.GMFlayer],'embed_u')
+            embed_i = init_variable([self.shape[1],self.GMFlayer],'embed_i')
+            user_input = tf.nn.embedding_lookup(embed_u,self.user)
+            item_input = tf.nn.embedding_lookup(embed_i,self.item)
+            gmf_v = tf.multiply(user_input,item_input)
+        with tf.name_scope('predict'):
+            concat_v = tf.concat([gmf_v,mlp_v],1)
+            w_out = init_variable([self.GMFlayer+self.MLPlayer[-1],1],'w_out')
+            b_out = init_variable([1],'b_out')
+            self.y_ = tf.add(tf.matmul(concat_v ,w_out),b_out)
+    def add_loss(self):
+        self.loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=self.rate ,logits=self.y_))
+
+    
+
+
+
+
+
+

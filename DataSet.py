@@ -25,8 +25,8 @@ class DataSet(object):
                         user = int(lines[0])
                         movie = int(lines[1])
                         score = float(lines[2])
-                        # time = int(lines[3])
-                        data.append((user, movie, score))
+                        time = int(lines[3])
+                        data.append((user, movie, score,time))
                         if user > u:
                             u = user
                         if movie > i:
@@ -46,7 +46,7 @@ class DataSet(object):
 
     def getTrainTest(self):
         data = self.data
-        data = sorted(data, key=lambda x: (x[0]))
+        data = sorted(data, key=lambda x: (x[0],x[3]))
         train = []
         test = []
         for i in range(len(data)-1):

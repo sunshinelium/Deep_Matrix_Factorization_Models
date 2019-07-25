@@ -5,12 +5,16 @@ import sys
 
 
 class DataSet(object):
-    def __init__(self, fileName):
-        self.data, self.shape = self.getData(fileName)
+    def __init__(self, fileName,isRate,lineSpliter,minId):
+        self.minId = minId
+        if isRate:
+            self.data, self.shape = self.getData_rate(fileName,lineSpliter)
+        else:
+            self.data, self.shape = self.getData(fileName,lineSpliter)
         self.train, self.test = self.getTrainTest()
         self.trainDict = self.getTrainDict()
 
-    def getData(self, fileName):
+    def getData_rate(self, fileName,lineSpliter):
         # if fileName == 'ml-1m':
         #     print("Loading ml-1m data set...")
             data = []
@@ -21,11 +25,14 @@ class DataSet(object):
             with open(filePath, 'r') as f:
                 for line in f:
                     if line:
-                        lines = line[:-1].split("\t")
+                        lines = line[:-1].split(lineSpliter)
                         user = int(lines[0])
                         movie = int(lines[1])
                         score = float(lines[2])
-                        time = int(lines[3])
+                        try:
+                            time = int(lines[3])
+                        except:
+                            time = 0
                         data.append((user, movie, score,time))
                         if user > u:
                             u = user
@@ -43,22 +50,60 @@ class DataSet(object):
         # else:
         #     print("Current data set is not support!")
         #     sys.exit()
-
+    def getData(self, fileName,lineSpliter):
+        data = []
+        filePath = fileName
+        u = 0
+        i = 0
+        maxr = 0.0
+        with open(filePath, 'r') as f:
+            for line in f:
+                if line[:-1]:
+                    lines = line[:-1].split(lineSpliter)
+                    user = int(lines[0])
+                    movie = int(lines[1])
+                    score = float(1) 
+                    try:
+                        time = int(lines[3])
+                    except:
+                        time = 0
+                    data.append((user, movie, score,time))
+                    if user > u:
+                        u = user
+                    if movie > i:
+                        i = movie
+                    if score > maxr:
+                        maxr = score
+        self.maxRate = maxr
+        if not self.minId:
+            u,i = u+1,i+1
+        print("Loading Success!\n"
+                "Data Info:\n"
+                "\tUser Num: {}\n"
+                "\tItem Num: {}\n"
+                "\tData Size: {}".format(u, i, len(data)))
+        return data, [u, i]
     def getTrainTest(self):
         data = self.data
         data = sorted(data, key=lambda x: (x[0],x[3]))
         train = []
         test = []
         for i in range(len(data)-1):
-            user = data[i][0]-1
-            item = data[i][1]-1
+            if self.minId:
+                user = data[i][0]-1
+                item = data[i][1]-1
+            else:
+                user = data[i][0]
+                item = data[i][1]
             rate = data[i][2]
             if data[i][0] != data[i+1][0]:
                 test.append((user, item, rate))
             else:
                 train.append((user, item, rate))
-
-        test.append((data[-1][0]-1, data[-1][1]-1, data[-1][2]))
+        if self.minId:
+            test.append((data[-1][0]-1, data[-1][1]-1, data[-1][2]))
+        else:
+            test.append((data[-1][0], data[-1][1], data[-1][2]))
         return train, test
 
     def getTrainDict(self):
